@@ -19,10 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-NOTICE: This software implements parts of the ACMG/AMP 2015 variant
-interpretation framework (Richards et al., Genet Med 17:405-424). It retrieves
-data from ClinVar, gnomAD, Ensembl VEP and PubMed and is not affiliated with or
-endorsed by any of them. Output is research evidence assembly, not a clinical
-classification, and must not be used for patient care without review by a
-qualified clinical genetics professional.

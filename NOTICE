@@ -1,0 +1,11 @@
+# NOTICE
+
+This software implements parts of the ACMG/AMP 2015 variant interpretation framework
+(Richards et al., *Genet Med* 17:405-424).
+
+It retrieves data from ClinVar, gnomAD, Ensembl VEP and PubMed. It is **not affiliated
+with or endorsed by** NCBI, the Broad Institute, Ensembl, or any of those projects.
+Data remains subject to each source's own terms of use.
+
+**Output is research evidence assembly, not a clinical classification.** It must not be
+used for patient care without review by a qualified clinical genetics professional.
