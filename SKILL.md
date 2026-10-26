@@ -4,7 +4,7 @@ description: Use when deriving ACMG codes for a variant from ClinVar, gnomAD, VE
 license: MIT
 compatibility: Requires python3 (stdlib only, no pip install) and outbound HTTPS to eutils.ncbi.nlm.nih.gov, gnomad.broadinstitute.org and rest.ensembl.org. A sandbox that blocks network access disables the whole skill.
 metadata:
-  version: "1.0.0"
+  version: "2.0.0"
   author: Swapnil Padmane
   repository: https://github.com/darshak26/acmg-variant-curation
   spec: https://agentskills.io/specification
@@ -18,7 +18,8 @@ and the ACMG/AMP 2015 rulebook. Built for the TP53 project but gene-agnostic.
 Scope, stated honestly: the seven codes below are the ones derivable from public
 databases. Curated criteria — PS4, PM6, PP1, PS2 — need case-level data and are **not**
 covered. This skill does not handle CNVs, structural variants or somatic curation; the
-PP3/BP4 machinery means nothing there.
+PP3/BP4 machinery means nothing there. Out-of-scope input is rejected with exit code 2 and a
+pointer to the right standard, never half-curated.
 
 Five steps, in this order: **ClinVar → gnomAD → VEP → PubMed → ACMG**. Order matters —
 population frequency can end curation early (BA1), and functional evidence outranks every
@@ -148,9 +149,16 @@ Two PP3 schemes:
 - `revel` — single calibrated predictor, PP3 at REVEL ≥ 0.75, BP4 at ≤ 0.15, middle is
   indeterminate. ClinGen SVI 2022 preference; stricter.
 
-Decision logic: BA1 → benign, done. More benign codes than pathogenic → benign-leaning.
-PM2 + PP3 alone, no benign codes, no assay → pathogenic-leaning, untested. Codes in both
-directions → flag for review, do not force a call.
+Decision logic — **points, never a code count** (ClinGen SVI / Tavtigian 2020 weights):
+Very Strong 8, Strong 4, Moderate 2, Supporting 1. BA1 → benign, done. Pathogenic at
+≥ 10 points, benign at ≥ 7, otherwise **VUS**. Direction is reported separately and is
+not a classification.
+
+The seven public-data codes max out at 6 pathogenic points (PM2 1 + PP3 1 + PS3 4), so
+this skill **cannot** reach a pathogenic call alone. Do not "improve" the lean to fix
+that: the gap is closed by case data (PS4) or a read assay (PS3), not by re-weighting.
+When the codes and ClinVar point different ways, print `CONFLICT WITH CLINVAR` and do not
+resolve it in the tool's favour.
 
 ## Pitfalls (all verified against the live APIs)
 
@@ -188,6 +196,22 @@ directions → flag for review, do not force a call.
   denominator and can flip PP3/BP4. The payload now carries `vep.bayesdel_merge`
   (`ok` / `not returned` / `merge failed: ...`) — check it before quoting the "n/available"
   count, and re-run the fetch if it says the merge failed.
+- **A guard that compares nothing passes everything.** The identity check originally parsed
+  only `c.` HGVS, so a ClinVar record filed as `NC_000017.11:g.7579817G>C` left
+  `clinvar_hgvs: null` and returned `ok: true` without comparing a single value. Any "no
+  problems found" result must be backed by a list of checks actually performed — the payload
+  now carries `consistency.checks` and reports `no cross-check was possible` when empty.
+- **A wrong MANE transcript silently empties VEP.** Filtering `--transcript` to another
+  gene's accession drops every consequence: `most_severe_consequence` becomes `"?"`, scores
+  are `{}`, and downstream that reads as "this position has no predictors" instead of "you
+  gave me the wrong transcript". The payload flags `vep.transcript_mismatch`. A one-character
+  typo in an accession otherwise produces a confident wrong answer with no error.
+- **CNV and SV records live in ClinVar `obj_type`, not `variant_type`.** `variant_type`
+  is null in esummary, so a check against it never fires. Match `copy number gain`,
+  `copy number loss`, `inversion`, `translocation`, `complex` and abort with exit 2.
+- **Compare parsed HGVS coordinates, not raw strings.** ClinVar writes
+  `NM_000546.6(TP53):c.733G>A` — accession outside the parens — so a string compare marks
+  identical variants as mismatched and blocks a correct run.
 - **Recompute every code from the numbers printed beside it.** Hand-written evidence
   tables routinely pair a code with a value that contradicts its own threshold — a variant
   with 2 alleles in gnomAD is not "absent", so PM2 cannot fire under an AF = 0 threshold.

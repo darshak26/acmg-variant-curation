@@ -1,7 +1,8 @@
 {
-  "fetched_at": "2026-10-26T03:41:42+00:00",
+  "fetched_at": "2026-10-26T04:24:56+00:00",
   "clinvar": {
     "variation_id": "12365",
+    "obj_type": "single nucleotide variant",
     "accession": "VCV000012365",
     "title": "NM_000546.6(TP53):c.733G>A (p.Gly245Ser)",
     "gene_sort": "TP53",
@@ -66,6 +67,7 @@
       "alphamissense": "likely_pathogenic"
     },
     "bayesdel_merge": "ok",
+    "transcript_mismatch": null,
     "tools_with_data": [
       "alphamissense",
       "bayesdel_addaf",
@@ -79,148 +81,21 @@
     "source": "https://rest.ensembl.org/vep/human/hgvs/NM_000546.6%3Ac.733G%3EA?transcript_id=ENST00000269305&CADD=1&REVEL=1&PolyPhen=1&SIFT=1&AlphaMissense=1&content-type=application/json"
   },
   "pubmed": {
-    "terms": [
-      "p.Gly245Ser",
-      "G245S"
-    ],
-    "query": "\"p.Gly245Ser\"[tiab] OR \"G245S\"[tiab]",
-    "count": 54,
-    "pmids": [
-      "42609723",
-      "42589334",
-      "41493064",
-      "41293026",
-      "41279808",
-      "40772622",
-      "40659933",
-      "40597236",
-      "39394554",
-      "37949965",
-      "37835510",
-      "37773066",
-      "37593116",
-      "37030635",
-      "36661413",
-      "36264169",
-      "35367578",
-      "35333136",
-      "34901699",
-      "34552337"
-    ],
-    "source": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmode=json&retmax=20&term=%22p.Gly245Ser%22%5Btiab%5D%20OR%20%22G245S%22%5Btiab%5D",
-    "hits": [
-      {
-        "pmid": "42609723",
-        "date": "2026",
-        "title": "Liquid Biopsy-Based Profiling of TP53 Gene Hotspot Mutations in HBV-Induced Chronic Liver Disease and Hepatocellular Carcinoma Patients: A Study From Bangladesh."
-      },
-      {
-        "pmid": "42589334",
-        "date": "2026 Jul 27",
-        "title": "FDA-Approved Drug Repurposing as p53 Mutants Rescue Candidates Using Structure-Based Virtual Screening and Molecular Simulations."
-      },
-      {
-        "pmid": "41493064",
-        "date": "2026 Jan 26",
-        "title": "Toward In Situ Dynamics of DNA-Bound Full-Length p53 Tetramer."
-      },
-      {
-        "pmid": "41293026",
-        "date": "2025 Nov 13",
-        "title": "Mutant p53 binds RNA to drive mitochondrial dysfunction."
-      },
-      {
-        "pmid": "41279808",
-        "date": "2025 Oct 15",
-        "title": "Towards In Situ Dynamics of DNA-bound Full-Length p53 Tetramer."
-      },
-      {
-        "pmid": "40772622",
-        "date": "2025 Oct",
-        "title": "P53 Function Status Correlates With Overall Survival in Patients With Resected Pancreatic Cancer."
-      },
-      {
-        "pmid": "40659933",
-        "date": "2025 Nov",
-        "title": "Specific TP53 mutations impair the recruitment of 53BP1 to DNA double-strand breaks underlying the mechanism of radioresistance."
-      },
-      {
-        "pmid": "40597236",
-        "date": "2025 Jul 1",
-        "title": "p53 aberrant expression is pervasive in pleomorphic carcinomas of the lung and a sensitive diagnostic adjunct for biopsy specimens."
-      },
-      {
-        "pmid": "39394554",
-        "date": "2024 Oct 11",
-        "title": "TP53 mutation status and consensus molecular subtypes of colorectal cancer in patients from Rwanda."
-      },
-      {
-        "pmid": "37949965",
-        "date": "2023 Nov 10",
-        "title": "Biological and genetic characterization of a newly established human external auditory canal carcinoma cell line, SCEACono2."
-      },
-      {
-        "pmid": "37835510",
-        "date": "2023 Sep 30",
-        "title": "TP53 Mutation in Acute Myeloid Leukemia: An Old Foe Revisited."
-      },
-      {
-        "pmid": "37773066",
-        "date": "2023 Sep 29",
-        "title": "Multidimensional quantitative phenotypic and molecular analysis reveals neomorphic behaviors of p53 missense mutants."
-      },
-      {
-        "pmid": "37593116",
-        "date": "2023",
-        "title": "Assessments of TP53 and CTNNB1 gene hotspot mutations in circulating tumour DNA of hepatitis B virus-induced hepatocellular carcinoma."
-      },
-      {
-        "pmid": "37030635",
-        "date": "2023 May 28",
-        "title": "Mutant p53 activates hnRNPA2B1-AGAP1-mediated exosome formation to promote esophageal squamous cell carcinoma progression."
-      },
-      {
-        "pmid": "36661413",
-        "date": "2023 May",
-        "title": "Development of an osteosarcoma model with MYCN amplification and TP53 mutation in hiPS cell-derived neural crest cells."
-      },
-      {
-        "pmid": "36264169",
-        "date": "2022 Oct",
-        "title": "Predictive Value of the TP53 p.G245S Mutation Frequency for the Short-Term Recurrence of Hepatocellular Carcinoma as Detected by Pyrophosphate Sequencing."
-      },
-      {
-        "pmid": "35367578",
-        "date": "2022 Jul",
-        "title": "p53 mutants G245S and R337H associated with the Li-Fraumeni syndrome regulate distinct metabolic pathways."
-      },
-      {
-        "pmid": "35333136",
-        "date": "2023 May",
-        "title": "Computational studies suggest compounds restoring function of p53 cancer mutants can bind SARS-CoV-2 spike protein."
-      },
-      {
-        "pmid": "34901699",
-        "date": "2021",
-        "title": "Isolated Ovarian Metastasis from Pancreatic Cancer Mimicking Primary Ovarian Neoplasia: Role of Molecular Analysis in Determining Diagnosis."
-      },
-      {
-        "pmid": "34552337",
-        "date": "2021",
-        "title": "High Tumor Mutation Burden and DNA Repair Gene Mutations are Associated with Primary Resistance to Crizotinib in ALK-Rearranged Lung Cancer."
-      }
-    ],
-    "action_required": "Read abstracts by hand. PS3/BS3 may ONLY be assigned from a functional assay reported in a paper you actually read. A title is not evidence."
+    "skipped": "identifier not supplied"
   },
   "consistency": {
     "ok": true,
     "problems": [],
+    "checks": [
+      "requested HGVS == ClinVar HGVS (c.733G>A)",
+      "gnomAD id == VEP locus (17:7674230 C>T)"
+    ],
     "identifiers": {
-      "requested_hgvs": "c.733G>A",
+      "requested_hgvs": "NM_000546.6:c.733G>A",
       "clinvar_title": "NM_000546.6(TP53):c.733G>A (p.Gly245Ser)",
       "clinvar_hgvs": "c.733G>A",
-      "gnomad_id": "17-7674230-C-T",
-      "vep_locus": "17:7674230 G/A"
+      "vep_locus": "17:7674230 G/A",
+      "gnomad_id": "17-7674230-C-T"
     }
   }
 }

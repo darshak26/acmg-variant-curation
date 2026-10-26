@@ -70,6 +70,16 @@ def _post_json(url, payload, tries=3):
     raise RuntimeError(f"POST {url} failed: {err!r}")
 
 
+class OutOfScope(Exception):
+    """The variant is real but outside this tool's competence. Never guess around it."""
+
+
+# ClinVar files copy-number and structural variants under obj_type, NOT variant_type
+# (which comes back null in esummary). Checking variant_type would never fire.
+OUT_OF_SCOPE_TYPES = ("copy number gain", "copy number loss", "inversion",
+                      "translocation", "complex")
+
+
 # ---------------------------------------------------------------- ClinVar
 def fetch_clinvar(variation_id):
     url = f"{EUTILS}/esummary.fcgi?db=clinvar&retmode=json&id={urllib.parse.quote(str(variation_id))}"
@@ -77,8 +87,23 @@ def fetch_clinvar(variation_id):
     if not rec:
         return {"variation_id": variation_id, "error": "not found", "classification": None}
     gc = rec.get("germline_classification", {}) or {}
+    obj_type = (rec.get("obj_type") or "").strip()
+    if any(t in obj_type.lower() for t in OUT_OF_SCOPE_TYPES):
+        title = rec.get("title") or ""
+        span = re.search(r"chr[^:]*:([0-9]+)-([0-9]+)", title)
+        size = ""
+        if span:
+            kb = (int(span.group(2)) - int(span.group(1))) / 1000
+            size = f", ~{kb:,.0f} kb" if kb < 10000 else f", ~{kb/1000:,.1f} Mb"
+        raise OutOfScope(
+            f"Variant {variation_id} is a {obj_type}{size}: {title}\n"
+            "acmg-variant-curation curates germline SNVs and small indels under "
+            "Richards 2015. This variant is out of scope and no codes will be derived.\n"
+            "For CNVs use the ACMG/ClinGen 2020 technical standards (Riggs et al., "
+            "Genet Med 22:245-257) with a purpose-built CNV tool.")
     return {
         "variation_id": str(variation_id),
+        "obj_type": obj_type,
         "accession": rec.get("accession"),
         "title": rec.get("title"),
         "gene_sort": rec.get("gene_sort"),
@@ -154,6 +179,14 @@ def fetch_vep(hgvs, transcript=None):
         return {"hgvs": hgvs, "error": "VEP returned nothing", "scores": {}}
     tcs = d.get("transcript_consequences") or []
     tc = dict(tcs[0]) if tcs else {}
+    # A wrong MANE accession makes the filter drop every consequence, which reads
+    # downstream as "this position has no predictors" and quietly weakens the call.
+    transcript_mismatch = None
+    if transcript and not any(t.get("transcript_id") == transcript for t in tcs):
+        transcript_mismatch = (
+            f"no consequence returned for transcript {transcript}. Either the accession "
+            "is wrong or the variant is not in that gene - the empty predictor set is the "
+            "filter's doing, not missing data. Refetch with the correct MANE transcript.")
     # BayesDel is not a VEP plugin: it needs the dbNSFP param, which suppresses
     # AlphaMissense on the same request. Second call, merged in.
     # A failed merge must never look like "this position has no dbNSFP data": count3
@@ -187,6 +220,7 @@ def fetch_vep(hgvs, transcript=None):
             "allele_string": d.get("allele_string"), "strand": d.get("strand"),
             "hgvsp": d.get("hgvsp"), "hgvsc": d.get("hgvsc"),
             "scores": scores, "bayesdel_merge": bayesdel_status,
+            "transcript_mismatch": transcript_mismatch,
             "tools_with_data": sorted(k for k, v in scores.items() if v is not None),
             "tools_missing": sorted(k for k, v in scores.items() if v is None),
             "source": url}
@@ -219,8 +253,48 @@ def fetch_pubmed(terms, retmax=20):
 
 
 # ------------------------------------------------- identifier consistency guard
-_C_HGVS = re.compile(r"(c\.[0-9_]+[ACGTacgt]*>[ACGTacgt]+|c\.[0-9_]+del[ACGT]*|c\.[0-9_]+ins[ACGT]+)")
+# ClinVar records carry whichever HGVS flavour the submitter used. matching only c.
+# made the guard return ok:true WITHOUT comparing anything for genomic records -
+# a silent bypass of the one check this tool exists to perform.
+_HGVS = re.compile(
+    r"((?:[A-Z]{2}_[0-9]+\.[0-9]+:)?[cgn]\.[0-9_]+"
+    r"(?:[ACGTacgt]*>[ACGTacgt]+|del[ACGT]*|ins[ACGT]+|dup[ACGT]*))")
 _P_HGVS = re.compile(r"p\.\(?([A-Z][a-z]{2})(\d+)([A-Z][a-z]{2}|Ter|=)")
+
+
+def _parse_hgvs(s):
+    """-> {kind, raw, pos, ref, alt} for c./g./n. notation, or None if absent."""
+    if not s:
+        return None
+    m = _HGVS.search(s)
+    if not m:
+        return None
+    raw = m.group(1)
+    kind = re.match(r"(?:[A-Z]{2}_[0-9]+\.[0-9]+:)?([cgn])\.", raw)
+    body = raw.split(":", 1)[-1] if ":" in raw else raw
+    out = {"kind": kind.group(1) if kind else None, "raw": raw, "pos": None,
+           "ref": None, "alt": None}
+    pm = re.search(r"(\d+)([ACGTacgt]*)>([ACGTacgt]+)", body)
+    if pm:
+        out["pos"], out["ref"], out["alt"] = int(pm.group(1)), pm.group(2).upper(), pm.group(3).upper()
+    else:
+        pm = re.search(r"(\d+)", body)
+        if pm:
+            out["pos"] = int(pm.group(1))
+    return out
+
+
+def _vep_alleles_plus_strand(vep, req_kind):
+    """VEP reports allele_string in TRANSCRIPT orientation for c./n. input, and in
+    plus-strand orientation for g. input. Normalise to plus strand before comparing."""
+    av = (vep or {}).get("allele_string") or ""
+    if "/" not in av:
+        return None, None
+    r, _, a = av.partition("/")
+    if req_kind in ("c", "n") and (vep or {}).get("strand") == -1:
+        comp = str.maketrans("ACGT", "TGCA")
+        r, a = r.translate(comp), a.translate(comp)
+    return r, a
 
 
 def check_identity(clinvar, gnomad, vep, hgvs=None):
@@ -230,44 +304,80 @@ def check_identity(clinvar, gnomad, vep, hgvs=None):
     pathogenic classification for variant A while gnomAD and VEP answer for
     variant B, and every code still fires. Refuse to blend them.
     """
-    problems, seen = [], {}
-    if hgvs:
-        m = _C_HGVS.search(hgvs)
-        seen["requested_hgvs"] = m.group(1) if m else hgvs
+    problems, seen, checks = [], {}, []
+    req = _parse_hgvs(hgvs)
+    seen["requested_hgvs"] = req["raw"] if req else hgvs
 
+    cv = None
     if isinstance(clinvar, dict) and clinvar.get("title"):
-        t = clinvar["title"]
-        mc = _C_HGVS.search(t)
-        seen["clinvar_title"] = t
-        seen["clinvar_hgvs"] = mc.group(1) if mc else None
-        if hgvs and mc and mc.group(1).lower() != seen["requested_hgvs"].lower():
-            problems.append(f"ClinVar record is {mc.group(1)}, you asked for "
-                            f"{seen['requested_hgvs']} -> WRONG VARIATION ID")
+        seen["clinvar_title"] = clinvar["title"]
+        cv = _parse_hgvs(clinvar["title"])
+        seen["clinvar_hgvs"] = cv["raw"] if cv else None
 
+    # Check 1: the HGVS you asked for vs the HGVS ClinVar filed. Same notation only.
+    if req and cv:
+        if req["kind"] == cv["kind"]:
+            # Compare PARSED coordinates, not raw strings: ClinVar writes
+            # "NM_000546.6(TP53):c.733G>A" where the accession sits outside the
+            # variant parens, so a raw compare flags identical variants as wrong.
+            same = None
+            if req["pos"] and cv["pos"]:
+                same = (req["pos"], req["ref"], req["alt"]) == (cv["pos"], cv["ref"], cv["alt"])
+            if same is None:
+                same = (req["raw"].split(":")[-1].lower() == cv["raw"].split(":")[-1].lower())
+            if not same:
+                problems.append(f"ClinVar record is {cv['raw']}, you asked for "
+                                f"{req['raw']} -> WRONG VARIATION ID")
+            else:
+                checks.append(f"requested HGVS == ClinVar HGVS ({req['raw'].split(':')[-1]})")
+        else:
+            checks.append(f"ClinVar is {cv['kind']}. and you asked for {req['kind']}. : "
+                          "cross-checked by genomic position instead of by string")
+
+    vep = vep if isinstance(vep, dict) else {}
+    vpos = vep.get("start")
+    vchr = str(vep.get("seq_region_name") or "")
+    if vpos:
+        seen["vep_locus"] = f"{vchr}:{vpos} {vep.get('allele_string')}"
+    vref, valt = _vep_alleles_plus_strand(vep, req["kind"] if req else None)
+
+    # Check 2: ClinVar genomic record vs VEP's resolution of the same variant.
+    if cv and cv["kind"] == "g" and vpos:
+        if cv["pos"] != vpos:
+            problems.append(f"ClinVar genomic position is {cv['pos']} but VEP resolved "
+                            f"{vpos} -> DIFFERENT POSITION")
+        elif cv["ref"] and (vref, valt) != (cv["ref"], cv["alt"]):
+            problems.append(f"ClinVar alleles {cv['ref']}>{cv['alt']} vs VEP "
+                            f"{vref}>{valt} at {vpos} -> DIFFERENT ALT")
+        else:
+            checks.append(f"ClinVar genomic locus == VEP locus ({vchr}:{vpos})")
+
+    # Check 3: the gnomAD id vs VEP's resolution.
     if isinstance(gnomad, dict):
         gid = gnomad.get("variant_id") or ""
         seen["gnomad_id"] = gid
-        gm = re.match(r"^(\w+)-(\d+)-([ACGT]+)-([ACGT]+)$", gid or "")
-        if gm and isinstance(vep, dict) and vep.get("start"):
+        gm = re.match(r"^(\w+)-(\d+)-([ACGT]+)-([ACGT]+)$", gid)
+        if gm and vpos:
             gchr, gpos, gref, galt = gm.groups()
-            vchr = str(vep.get("seq_region_name") or "")
-            vpos, valleles = str(vep.get("start")), (vep.get("allele_string") or "")
-            seen["vep_locus"] = f"{vchr}:{vpos} {valleles}"
-            if gchr != vchr or gpos != vpos:
+            if gchr != vchr or gpos != str(vpos):
                 problems.append(f"gnomAD id is at {gchr}:{gpos} but VEP resolved "
                                 f"{vchr}:{vpos} -> DIFFERENT POSITION")
-            elif "/" in valleles:
-                vref, _, valt = valleles.partition("/")
-                # VEP returns allele_string in transcript orientation. On a minus-strand
-                # gene (TP53) that is the reverse complement of a gnomAD id, so compare
-                # in genomic orientation or every minus-strand variant looks mismatched.
-                if vep.get("strand") == -1:
-                    _comp = str.maketrans("ACGT", "TGCA")
-                    vref, valt = vref.translate(_comp), valt.translate(_comp)
-                if (gref, galt) != (vref, valt):
-                    problems.append(f"gnomAD alleles {gref}>{galt} vs VEP "
-                                    f"{vref}>{valt} at the same position -> DIFFERENT ALT")
-    return {"ok": not problems, "problems": problems, "identifiers": seen}
+            elif vref and (gref, galt) != (vref, valt):
+                problems.append(f"gnomAD alleles {gref}>{galt} vs VEP "
+                                f"{vref}>{valt} at the same position -> DIFFERENT ALT")
+            else:
+                checks.append(f"gnomAD id == VEP locus ({gchr}:{gpos} {gref}>{galt})")
+
+    # Nothing was actually compared -> the identifiers are unverified, not verified.
+    # ok must not be true by default: that is how the genomic-HGVS bypass happened.
+    if not problems and not checks:
+        problems.append(
+            "no cross-check was possible: nothing tied the supplied identifiers to one "
+            "variant. Supply all three (--clinvar, --gnomad, --hgvs) so the guard can "
+            "prove they agree. PM2 will be withheld until it can.")
+
+    return {"ok": not problems, "problems": problems, "checks": checks,
+            "identifiers": seen}
 
 
 def selftest():
@@ -281,7 +391,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--clinvar", help="ClinVar variation id (e.g. 3634421)")
     ap.add_argument("--gnomad", help="gnomAD variant id, GRCh38, e.g. 17-7669613-T-A")
-    ap.add_argument("--hgvs", help="HGVS c. notation with accession, e.g. NM_000546.6:c.1178A>T")
+    ap.add_argument("--hgvs", help="HGVS with accession: NM_000546.6:c.1178A>T or "
+                                   "NC_000017.11:g.7674230C>T (both are parsed)")
     ap.add_argument("--transcript", help="MANE Select ENST id (filters VEP output)")
     ap.add_argument("--pubmed-terms", help="comma-separated protein-change spellings")
     ap.add_argument("--out", help="JSON output path (default stdout)")
@@ -291,6 +402,33 @@ def main():
         return selftest()
 
     result = {"fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    try:
+        _collect(a, result)
+    except OutOfScope as e:
+        print(f"[OUT OF SCOPE] {e}", file=sys.stderr)
+        return 2
+
+    result["consistency"] = check_identity(
+        result.get("clinvar"), result.get("gnomad"), result.get("vep"), a.hgvs)
+    if not result["consistency"]["ok"]:
+        print("!! IDENTIFIER CHECK FAILED - DO NOT CURATE THIS PAYLOAD", file=sys.stderr)
+        for pr in result["consistency"]["problems"]:
+            print("!!   " + pr, file=sys.stderr)
+    else:
+        for ck in result["consistency"]["checks"]:
+            print(f"ok   {ck}", file=sys.stderr)
+
+    txt = json.dumps(result, indent=2, ensure_ascii=False)
+    if a.out:
+        with open(a.out, "w", encoding="utf-8") as f:
+            f.write(txt + "\n")
+        print(f"wrote {a.out}")
+    else:
+        print(txt)
+    return 0
+
+
+def _collect(a, result):
     for name, fn in (("clinvar", lambda: fetch_clinvar(a.clinvar)),
                      ("gnomad", lambda: fetch_gnomad(a.gnomad)),
                      ("vep", lambda: fetch_vep(a.hgvs, a.transcript)),
@@ -301,24 +439,11 @@ def main():
             continue
         try:
             result[name] = fn()
+        except OutOfScope:                          # not an endpoint failure: abort
+            raise
         except Exception as e:                      # a dead endpoint is NA, never a zero
             result[name] = {"error": str(e)[:400]}
 
-    result["consistency"] = check_identity(
-        result.get("clinvar"), result.get("gnomad"), result.get("vep"), a.hgvs)
-    if not result["consistency"]["ok"]:
-        print("!! IDENTIFIER MISMATCH - DO NOT CURATE THIS PAYLOAD", file=sys.stderr)
-        for pr in result["consistency"]["problems"]:
-            print("!!   " + pr, file=sys.stderr)
-
-    txt = json.dumps(result, indent=2, ensure_ascii=False)
-    if a.out:
-        with open(a.out, "w", encoding="utf-8") as f:
-            f.write(txt + "\n")
-        print(f"wrote {a.out}")
-    else:
-        print(txt)
-
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

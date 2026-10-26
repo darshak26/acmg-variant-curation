@@ -22,6 +22,24 @@ import argparse, json, sys
 DAMAGING = "pathogenic"
 BENIGN = "benign"
 
+# ClinGen SVI points weighting (Tavtigian et al. 2020). The vote-count lean this
+# replaced said "pathogenic-leaning" for one Supporting code, which no ACMG
+# combination rule supports: a single PP/PM code cannot classify anything.
+STRENGTH_POINTS = {"very_strong": 8, "strong": 4, "moderate": 2, "supporting": 1}
+PATHOGENIC_THRESHOLD = 10       # Tavtigian: >=10 points -> pathogenic
+BENIGN_THRESHOLD = 7            # >=7 benign points -> benign
+
+
+def _clinvar_direction(label):
+    """'Pathogenic/Likely pathogenic' -> pathogenic, 'Benign' -> benign, else None."""
+    s = (label or "").lower()
+    if "conflict" in s or not s:
+        return None
+    has_p, has_b = "pathogenic" in s, "benign" in s
+    if has_p == has_b:
+        return None
+    return "pathogenic" if has_p else "benign"
+
 
 def _polyphen_dir(label):
     if not label:
@@ -92,7 +110,8 @@ def main():
     d = json.load(open(a.jsonfile, encoding="utf-8"))
 
     g = d.get("gnomad") or {}
-    vep = (d.get("vep") or {}).get("scores") or {}
+    vep_obj = d.get("vep") or {}
+    vep = vep_obj.get("scores") or {}
     af = g.get("af")
     faf95 = g.get("faf95_popmax")
     freq_for_ba1 = faf95 if faf95 is not None else af
@@ -173,20 +192,51 @@ def main():
         codes.append({"code": "BS3", "direction": BENIGN, "strength": "strong",
                       "basis": "functional assay reported no effect (supplied by curator)"})
 
-    # --- lean
+    # --- lean, on ClinGen SVI points (Tavtigian 2020), never a code count
     path = [c for c in codes if c["direction"] == DAMAGING]
     ben = [c for c in codes if c["direction"] == BENIGN]
+    path_pts = sum(STRENGTH_POINTS.get(c["strength"], 0) for c in path)
+    ben_pts = sum(STRENGTH_POINTS.get(c["strength"], 0) for c in ben)
+
+    verdict = None
     if any(c["code"] == "BA1" for c in codes):
+        verdict = "BENIGN"
         lean = "Benign (standalone BA1) - curation complete, no further evidence needed"
-    elif len(ben) > len(path):
-        lean = "Benign-leaning"
-    elif len(path) > len(ben):
-        lean = ("Pathogenic-leaning, untested (no functional assay)" if a.functional == "none"
-                else "Pathogenic-leaning")
-    elif path and ben:
-        lean = "Conflicting evidence - flag for review, do not force a call"
+    elif path_pts >= PATHOGENIC_THRESHOLD:
+        verdict = "PATHOGENIC"
+        lean = f"Pathogenic - {path_pts} pathogenic points (threshold {PATHOGENIC_THRESHOLD})"
+    elif ben_pts >= BENIGN_THRESHOLD:
+        verdict = "BENIGN"
+        lean = f"Benign - {ben_pts} benign points (threshold {BENIGN_THRESHOLD})"
     else:
-        lean = "VUS - insufficient evidence"
+        verdict = "VUS"
+        direction = ("pathogenic" if path_pts > ben_pts else
+                     "benign" if ben_pts > path_pts else "none")
+        lean = (f"VUS - insufficient evidence ({path_pts} pathogenic / {ben_pts} benign points). "
+                f"Direction {direction}, which is not a classification")
+
+    # A public-data-only pipeline rarely reaches 10 points. Say so rather than let a
+    # reader mistake "pathogenic-leaning" for a call, and flag a ClinVar clash loudly.
+    if verdict != "BENIGN" and path_pts < PATHOGENIC_THRESHOLD and path_pts:
+        notes.append(
+            f"{path_pts} pathogenic point(s) from public data only - below the "
+            f"{PATHOGENIC_THRESHOLD}-point threshold. The codes support a direction, not a "
+            "classification. Case-level evidence (PS4) or a read functional assay (PS3) is "
+            "what closes the gap, and neither is derivable from these databases.")
+    cv_dir = _clinvar_direction((d.get("clinvar") or {}).get("classification"))
+    cv_label = (d.get("clinvar") or {}).get("classification")
+    if cv_dir == "benign" and path_pts:
+        notes.append(
+            f"CONFLICT WITH CLINVAR: ClinVar calls this '{cv_label}' but the codes reach "
+            f"{path_pts} pathogenic point(s). Supporting-strength frequency/in-silico codes "
+            "do not outweigh a benign classification. Read the ClinVar record before "
+            "overruling it.")
+    elif cv_dir == "pathogenic" and ben_pts:
+        notes.append(
+            f"CONFLICT WITH CLINVAR: ClinVar calls this '{cv_label}' but the codes reach "
+            f"{ben_pts} benign point(s). Read the ClinVar record before overruling it.")
+    if vep_obj.get("transcript_mismatch"):
+        notes.insert(0, "VEP: " + vep_obj["transcript_mismatch"])
 
     print(f"Variant: {(d.get('clinvar') or {}).get('title')}")
     print(f"ClinVar: {(d.get('clinvar') or {}).get('classification')} "
@@ -201,11 +251,17 @@ def main():
         print(f"  {c['code']:<4} {c['direction']:<9} {c['strength']:<11} {c['basis']}")
     if not codes:
         print("  (none derivable)")
-    print(f"\nLean: {lean}")
+    fmt_pts = ", ".join(f"{c['code']} {STRENGTH_POINTS.get(c['strength'], 0)}" for c in path)
+    fmt_ben = ", ".join(f"{c['code']} {STRENGTH_POINTS.get(c['strength'], 0)}" for c in ben)
+    print(f"\nPoints (ClinGen SVI): pathogenic {path_pts}"
+          f"{' [' + fmt_pts + ']' if fmt_pts else ''}  |  benign {ben_pts}"
+          f"{' [' + fmt_ben + ']' if fmt_ben else ''}")
+    print(f"Lean: {lean}")
     if notes:
         print("\nNotes and caveats:")
         for n in notes:
             print(f"  - {n}")
+    print(f"Verdict: {verdict}")
     print(f"\nScheme: {a.scheme} | BS1>{a.bs1} | BA1>{a.ba1} | PM2 max AF {a.pm2_max_af} | "
           f"functional={a.functional}")
     print("Thresholds and dataset versions must be reported in Methods.")

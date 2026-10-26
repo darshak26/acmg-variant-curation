@@ -65,11 +65,25 @@ Predictor calls:
 Codes:
   PP3  pathogenic supporting  4/4 available tools damaging (REVEL, CADD, BayesDel, SIFT)
 
-Lean: Pathogenic-leaning, untested (no functional assay)
+Points (ClinGen SVI): pathogenic 1 [PP3 1]  |  benign 0
+Lean: VUS - insufficient evidence (1 pathogenic / 0 benign points). Direction pathogenic, which is not a classification
+
+Notes and caveats:
+  - PM2 NOT applied: variant is present in gnomad_r4 (ac=5, AF 3.1e-06) and --pm2-max-af is 0.0. ...
+  - 1 pathogenic point(s) from public data only - below the 10-point threshold. The codes support
+    a direction, not a classification. ...
+Verdict: VUS
 ```
 
-Two things are worth reading closely. **PM2 did not fire** — the variant is in gnomAD (AC=5), so
-under a strict "absent from gnomAD" reading it cannot, and the tool says so rather than quietly
+Read the last two lines first. **This variant is Pathogenic by ClinGen expert panel and the tool
+still says VUS** — deliberately. *Richards 2015 has no combination rule under which one Supporting
+code classifies anything.* Calling it "pathogenic-leaning" because one code outnumbered zero would
+be flattering, not accurate. The tool reports the direction and says plainly that direction is not
+a classification, then names what would close the gap (PS4 case data or a read PS3 assay — neither
+derivable from these databases).
+
+Two more things are worth reading closely. **PM2 did not fire** — the variant is in gnomAD (AC=5),
+so under a strict "absent from gnomAD" reading it cannot, and the tool says so rather than quietly
 rounding 5 alleles down to zero. And the count is **4/4, not 3/4** — BayesDel came from the second
 VEP call, which is why the payload records `vep.bayesdel_merge: "ok"`. A failed merge there would
 shrink the denominator and could flip the call.
@@ -105,6 +119,15 @@ outranks every in-silico predictor.
 CNVs, structural variants and somatic curation are out of scope: the PP3/BP4 machinery means
 nothing there. Clinical use needs a ClinGen expert panel; a curation from this tool is a proposal.
 
+Out-of-scope input is **rejected, not half-curated**. A ClinVar copy-number or structural record
+stops the run with exit code 2 and a pointer to the CNV standards:
+
+```
+[OUT OF SCOPE] Variant 150702 is a copy number gain, ~126 kb: GRCh38/hg38 17p13.1(chr17:7544902-7670581)x3
+acmg-variant-curation curates germline SNVs and small indels under Richards 2015.
+For CNVs use the ACMG/ClinGen 2020 technical standards (Riggs et al., Genet Med 22:245-257) ...
+```
+
 ## Two in-silico schemes
 
 PP3 has two defensible implementations that disagree on real variants. Pick one, declare it in
@@ -114,6 +137,21 @@ Methods, never mix.
   calibrated meta-predictor.
 - `revel` — single calibrated predictor: PP3 at REVEL ≥ 0.75, BP4 at ≤ 0.15, middle is
   indeterminate. The stricter ClinGen SVI 2022 reading.
+
+## The lean is points, not a vote count
+
+Codes carry direction *and strength*; strength converts to ClinGen SVI points (Very Strong 8,
+Strong 4, Moderate 2, Supporting 1). Pathogenic needs **≥ 10**, benign **≤ -7**, and BA1 remains
+standalone.
+
+This replaced a code-count lean that called any variant with more pathogenic codes than benign ones
+"pathogenic-leaning" — which meant a variant merely absent from gnomAD and nothing else read as
+pathogenic-leaning, and did so for synonymous, intronic and UTR variants alike.
+
+**The ceiling is a design property, not a bug.** The seven public-data codes max out at 6 points
+(PM2 1 + PP3 1 + PS3 4), so this tool cannot reach a pathogenic classification on its own. A test
+pins that, so it cannot be "fixed" into over-calling. When the codes and ClinVar disagree, the
+conflict is printed as `CONFLICT WITH CLINVAR` rather than resolved silently in the tool's favour.
 
 ## The identifier guard
 
@@ -179,7 +217,7 @@ Pin the version in your write-up alongside the dataset and access date:
 > Variants were annotated against ClinVar, gnomAD (dataset `gnomad_r4`, accessed YYYY-MM-DD) and
 > Ensembl VEP (transcript NM_000546.6/ENST00000269305). In-silico evidence was assessed on
 > algorithms with annotation for that position; algorithms without data were excluded and recorded
-> as NA. PP3/BP4 was applied on the `count3` scheme. Tool: acmg-variant-curation v1.0.0.
+> as NA. PP3/BP4 was applied on the `count3` scheme. Lean on ClinGen SVI points (Tavtigian et al. 2020). Tool: acmg-variant-curation v2.0.0.
 
 ## Honest limitations
 
@@ -192,10 +230,15 @@ Pin the version in your write-up alongside the dataset and access date:
   success in two, measured 2026-10-26. The client retries 5xx six times with jitter, so a run takes
   1–2 minutes. A 500 is not a bad parameter.
 - **Public data only.** No somatic, no CNV/SV, no phenotype, no segregation, no case-level data.
+- **It cannot reach a pathogenic call, and that is deliberate.** The seven derivable codes max out
+  at 6 of the 10 points needed. Expect `VUS` with a direction on almost everything.
+- **Codes can change between versions.** The lean and guard are part of the contract; a v1.0.0 and
+  a v2.0.0 run on the same variant may disagree. Record the tool version wherever you record the
+  dataset and access date.
 
 ## Citation
 
-> Padmane S. *acmg-variant-curation* (v1.0.0): ACMG code derivation from public variant databases
+> Padmane S. *acmg-variant-curation* (v2.0.0): ACMG code derivation from public variant databases
 > as an agent skill. https://github.com/darshak26/acmg-variant-curation
 
 ## License
