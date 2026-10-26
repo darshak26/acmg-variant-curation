@@ -15,6 +15,12 @@ Use `faf95.popmax` for the grpmax comparison; use `ac/an` for the plain AF. gnom
 `joint` block exposes `ac`, `an`, `homozygote_count`, `faf95{popmax, popmax_population}` —
 **not** `af`.
 
+**Same release, three blocks — the number depends on which one.** D393V in `gnomad_r4`:
+`joint` 2/1,613,494 = 1.24e-06 · `exome` 2/1,461,238 = 1.37e-06 · carriers identical. An AF
+that matches a different block exactly is not "a superseded release", it is the wrong
+subset. Quote `joint` and name the block; a subset error is invisible until someone
+re-fetches, and it looks like version drift when they do.
+
 ## Predictor thresholds
 
 | Tool | Damaging | Tolerated | Indeterminate | VEP field |
@@ -40,6 +46,10 @@ count3 scheme counts BayesDel; AlphaMissense is reported but not counted by eith
 
 That divergence is the point of declaring a scheme. Same variant, same scores, two honest
 answers. A paper that switches schemes between variants is not reproducible.
+
+Downstream of that: **any write-up quoting a PP3/BP4 call names the scheme beside the code**,
+not only in Methods. A bare "4 of 4 damaging" reads as a fact about the variant when it is a
+fact about the scheme; on D393V the same payload derives nothing at all under `revel`.
 
 ## Worked example — TP53 p.Asp393Val, NM_000546.6:c.1178A>T
 

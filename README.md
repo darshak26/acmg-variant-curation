@@ -345,11 +345,11 @@ and in [CHANGELOG.md](CHANGELOG.md). Pin it in your write-up alongside the datas
 > Ensembl VEP (transcript NM_000546.6/ENST00000269305). In-silico evidence was assessed on
 > algorithms with annotation for that position; algorithms without data were excluded and recorded
 > as NA. PP3/BP4 was applied on the `count3` scheme. Lean on ClinGen SVI points (Tavtigian et al.
-> 2020). Tool: acmg-variant-curation v2.0.0.
+> 2020). Tool: acmg-variant-curation v2.1.0.
 
 ## Citation
 
-> Padmane S. *acmg-variant-curation* (v2.0.0): ACMG code derivation from public variant databases
+> Padmane S. *acmg-variant-curation* (v2.1.0): ACMG code derivation from public variant databases
 > as an agent skill. https://github.com/darshak26/acmg-variant-curation
 
 Machine-readable metadata in [`CITATION.cff`](CITATION.cff).

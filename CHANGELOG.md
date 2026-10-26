@@ -4,6 +4,23 @@ Version lives in `metadata.version` in `SKILL.md`. Thresholds, schemes and guard
 behaviour are part of the contract: changing them changes the codes a given variant
 receives, so pin the tool version in Methods alongside the dataset and access date.
 
+## [2.1.0] - 2026-10-26
+
+**Guidance only.** No change to thresholds, schemes, the guard, or the codes a variant receives —
+a 2.0.0 and 2.1.0 run on the same payload agree. Safe to upgrade.
+
+### Corrected
+- **"gnomAD version drift" was a misdiagnosis.** A pitfall claimed the same variant reads
+  1.37e-06 in one release and 1.24e-06 in `gnomad_r4`. Both numbers are `gnomad_r4`, same two
+  carriers, different blocks: `joint` 2/1,613,494 = 1.2395e-06 and `exome` 2/1,461,238 =
+  1.3687e-06 (re-verified against the live API 2026-10-26). Curate from `joint`, and record the
+  block beside the dataset and date — an unlabelled AF is unreproducible even when correct.
+
+### Changed
+- **Name the scheme beside the code, not only in Methods.** D393V fires PP3 under `count3` and
+  derives nothing at all under `revel`; a bare "PP3, 4 of 4" is refutable by anyone who runs the
+  other scheme. Quote the code as "PP3 under count3, 4 of 4 available".
+
 ## [2.0.0] - 2026-10-26
 
 **Breaking: the codes a variant receives can differ from v1.0.0.** The lean is now ClinGen SVI

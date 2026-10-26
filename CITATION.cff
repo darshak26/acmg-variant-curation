@@ -6,7 +6,7 @@ abstract: >-
   from ClinVar, gnomAD, Ensembl VEP and PubMed, printing the evidence basis for every
   code and refusing pathogenic codes on unverified variant identifiers.
 type: software
-version: 2.0.0
+version: 2.1.0
 date-released: 2026-10-26
 license: MIT
 repository-code: "https://github.com/darshak26/acmg-variant-curation"
@@ -30,5 +30,5 @@ preferred-citation:
     - family-names: Padmane
       given-names: Swapnil
   year: 2026
-  version: 2.0.0
+  version: 2.1.0
   url: "https://github.com/darshak26/acmg-variant-curation"

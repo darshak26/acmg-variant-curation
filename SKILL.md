@@ -4,7 +4,7 @@ description: Use when deriving ACMG codes for a variant from ClinVar, gnomAD, VE
 license: MIT
 compatibility: Requires python3 (stdlib only, no pip install) and outbound HTTPS to eutils.ncbi.nlm.nih.gov, gnomad.broadinstitute.org and rest.ensembl.org. A sandbox that blocks network access disables the whole skill.
 metadata:
-  version: "2.0.0"
+  version: "2.1.0"
   author: Swapnil Padmane
   repository: https://github.com/darshak26/acmg-variant-curation
   spec: https://agentskills.io/specification
@@ -37,8 +37,12 @@ predictor.
    If the exact protein change returns zero hits, the honest answer is "no functional data".
 4. **Pin the versions.** gnomAD dataset (`gnomad_r4`), transcript accession, predictor score
    versions, and the date fetched. Unpinned frequencies are unreproducible.
-5. **Declare your scheme.** PP3 has two defensible implementations (below) that disagree on
-   real variants. Pick one, say which in Methods, never mix.
+5. **Declare your scheme, in the sentence that reports the code.** PP3 has two defensible
+   implementations (below) that disagree on real variants — D393V fires PP3 under `count3`
+   and yields **no code at all** under `revel`. Say which scheme in Methods *and* name it
+   beside the call wherever the code is quoted ("PP3 under count3, 4 of 4 available"). A
+   bare "PP3 (4 of 4)" is refutable by anyone who runs the other scheme, and the person who
+   refutes it will not believe the rest of the table. Never mix schemes between variants.
 6. **Check `consistency.ok` before you read any code.** The three identifiers must be
    proven to describe one variant. `fetch_evidence.py` now emits a `consistency` block;
    `ok: false` means the payload must not be curated. `acmg_codes.py` refuses PM2 on it.
@@ -165,8 +169,12 @@ resolve it in the tool's favour.
 - **gnomAD v4 `joint` has no `af` field.** Compute `ac/an`. Use `dataset: gnomad_r4`;
   `popmax` lives under `faf95`, not on the block. A bare `variant(id:...)` query fails —
   the argument is `variantId` plus a required `dataset`.
-- **gnomAD version drift moves the number.** The same variant reported as AF 1.37e-06 from
-  one release reads 1.24e-06 in `gnomad_r4` joint (2/1,613,494). Always record dataset + date.
+- **A differing AF is usually a different subset, not an older release.** The v4 payload
+  carries `joint`, `exome` and `genome` blocks: D393V reads 2/1,613,494 = 1.24e-06 under
+  `joint` and 2/1,461,238 = 1.37e-06 under `exome` — same release, same two carriers. Check
+  a suspect number against each block before blaming version drift, and when it matches one
+  exactly, the error was the subset. Curate from `joint` (the superset), and record the
+  block beside the dataset and date; an unlabelled AF is unreproducible even when correct.
 - **VEP flags are camelCase and opt-in.** Lowercase flags are silently ignored. BayesDel is
   not a VEP plugin — it needs `dbNSFP=BayesDel_addAF_score`, and that param suppresses
   AlphaMissense on the same request, so fetch it in a second call and merge.
