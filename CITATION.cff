@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use this tool, cite it as below."
+title: "acmg-variant-curation"
+abstract: >-
+  An Agent Skills package that derives ACMG/AMP 2015 codes for germline SNVs/indels
+  from ClinVar, gnomAD, Ensembl VEP and PubMed, printing the evidence basis for every
+  code and refusing pathogenic codes on unverified variant identifiers.
+type: software
+version: 1.0.0
+date-released: 2026-10-26
+license: MIT
+repository-code: "https://github.com/darshak26/acmg-variant-curation"
+keywords:
+  - acmg
+  - variant-interpretation
+  - vus
+  - variant-of-uncertain-significance
+  - clinvar
+  - gnomad
+  - bioinformatics
+  - agent-skills
+authors:
+  - family-names: Padmane
+    given-names: Swapnil
+    email: contact@padmane.com
+preferred-citation:
+  type: software
+  title: "acmg-variant-curation (v1.0.0): ACMG code derivation from public variant databases as an agent skill"
+  authors:
+    - family-names: Padmane
+      given-names: Swapnil
+  year: 2026
+  version: 1.0.0
+  url: "https://github.com/darshak26/acmg-variant-curation"

@@ -1,0 +1,30 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:      # live API check is manual: Ensembl VEP flaps ~50% of the time
+
+jobs:
+  offline:
+    name: validate + tests (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Skill conforms to the Agent Skills spec
+        run: python3 scripts/validate_skill.py
+
+      - name: Scripts compile
+        run: python3 -m py_compile scripts/*.py
+
+      - name: Engine tests (offline, no network)
+        run: python3 tests/test_engine.py
